@@ -28,7 +28,7 @@
             padding: 20px;
         }
 
-        /* Pantalla de Login */
+        /* Pantalla de Login - Centrada y Profesional */
         .login-container {
             display: flex;
             flex-direction: column;
@@ -42,31 +42,39 @@
             background: white;
             padding: 40px;
             border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             max-width: 400px;
             width: 100%;
         }
 
+        /* Botón de Google Estilizado con SVG */
         .btn-google {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
             width: 100%;
             padding: 12px;
             background-color: white;
-            color: #757575;
-            border: 1px solid var(--border-color);
+            color: #3c4043;
+            border: 1px solid #dadce0;
             border-radius: 4px;
-            font-size: 1rem;
-            font-weight: bold;
+            font-size: 0.95rem;
+            font-weight: 600;
             cursor: pointer;
-            margin-top: 20px;
-            transition: background 0.2s;
+            margin-top: 25px;
+            transition: background-color 0.2s, box-shadow 0.2s;
         }
 
         .btn-google:hover {
-            background-color: #f1f1f1;
+            background-color: #f8f9fa;
+            box-shadow: 0 1px 3px rgba(60,64,67,0.3);
+        }
+
+        .btn-google svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
 
         /* Contenedor Principal de la App */
@@ -329,8 +337,11 @@
     <div class="login-card">
         <h2 style="color: var(--primary-color); margin-bottom: 10px;">Presupuestos Cloud</h2>
         <p style="color: #666; font-size: 0.9rem;">Accede con tu cuenta de Google de forma segura para gestionar tus presupuestos.</p>
+        
         <button class="btn-google" onclick="loginConGoogle()">
-            <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/web-24dp/copy_of_24dp.png" alt="Google Logo" width="20">
+            <svg aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                <path fill="#4285F4" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+            </svg>
             Iniciar sesión con Google
         </button>
     </div>
@@ -588,7 +599,7 @@
     // Inicialización de servicios
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app); // Inicialización de Firestore
+    const db = getFirestore(app); 
     const provider = new GoogleAuthProvider();
 
     // Variables globales reactivas en la memoria del programa
@@ -603,7 +614,7 @@
             usuarioActual = user;
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-container').style.display = 'block';
-            cargarDatosDesdeFirestore(); // Carga automática desde Firestore
+            cargarDatosDesdeFirestore(); 
         } else {
             usuarioActual = null;
             document.getElementById('login-screen').style.display = 'flex';
@@ -637,7 +648,6 @@
     async function cargarDatosDesdeFirestore() {
         if (!usuarioActual) return;
         try {
-            // Buscamos el documento correspondiente al UID del usuario en la colección 'users'
             const userDocRef = doc(db, "users", usuarioActual.uid);
             const docSnap = await getDoc(userDocRef);
 
@@ -647,7 +657,6 @@
                 inventario = data.inventario || [];
                 miEmpresa = data.miEmpresa || {};
                 
-                // Pintamos la interfaz gráfica con los datos frescos de Firestore
                 cargarConfiguracionUI();
                 actualizarTablaClientes();
                 actualizarTablaInventario();
@@ -667,12 +676,11 @@
         if (!usuarioActual) return;
         try {
             const userDocRef = doc(db, "users", usuarioActual.uid);
-            // Guardamos todo de forma agrupada e íntegra bajo el UID del usuario en Firestore
             await setDoc(userDocRef, {
                 clientes: clientes,
                 inventario: inventario,
                 miEmpresa: miEmpresa
-            }, { merge: true }); // Merge evita sobrescribir campos vacíos sin querer
+            }, { merge: true }); 
         } catch (error) {
             console.error("Error al escribir en Cloud Firestore: ", error);
         }
