@@ -28,6 +28,48 @@
             padding: 20px;
         }
 
+        /* Pantalla de Login */
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            text-align: center;
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .btn-google {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px;
+            background-color: white;
+            color: #757575;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.2s;
+        }
+
+        .btn-google:hover {
+            background-color: #f1f1f1;
+        }
+
+        /* Contenedor Principal de la App */
         .container {
             max-width: 1100px;
             margin: 0 auto;
@@ -36,6 +78,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             position: relative;
+            display: none; /* Oculto hasta que se loguee */
         }
 
         header {
@@ -43,27 +86,44 @@
             margin-bottom: 30px;
             border-bottom: 2px solid var(--primary-color);
             padding-bottom: 15px;
-            padding-right: 50px; /* Espacio para el botón de configuración */
+            padding-right: 120px;
         }
 
         h1 {
             color: var(--primary-color);
         }
 
-        /* Botón Configuración Superior Derecha */
-        .btn-config-top {
+        /* Botones de la esquina superior derecha */
+        .top-actions {
             position: absolute;
             top: 30px;
             right: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        .btn-config-top {
             background: none;
             border: none;
             font-size: 1.8rem;
             cursor: pointer;
             transition: transform 0.3s ease;
-            z-index: 10;
         }
         .btn-config-top:hover {
             transform: rotate(45deg);
+        }
+
+        .btn-logout {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
         }
 
         /* Sistema de Pestañas */
@@ -265,10 +325,24 @@
 </head>
 <body>
 
-<div class="container">
+<div id="login-screen" class="login-container no-print">
+    <div class="login-card">
+        <h2 style="color: var(--primary-color); margin-bottom: 10px;">Presupuestos Cloud</h2>
+        <p style="color: #666; font-size: 0.9rem;">Accede con tu cuenta de Google de forma segura para gestionar tus presupuestos.</p>
+        <button class="btn-google" onclick="loginConGoogle()">
+            <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/web-24dp/copy_of_24dp.png" alt="Google Logo" width="20">
+            Iniciar sesión con Google
+        </button>
+    </div>
+</div>
+
+<div id="app-container" class="container">
     <header class="no-print">
         <h1>Sistema de Gestión de Presupuestos</h1>
-        <button class="btn-config-top" onclick="switchTab('tab-configuracion')" title="Configuración de Empresa">⚙️</button>
+        <div class="top-actions">
+            <button class="btn-config-top" onclick="switchTab('tab-configuracion')" title="Configuración de Empresa">⚙️</button>
+            <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+        </div>
     </header>
 
     <div class="tabs no-print" id="main-tabs">
@@ -321,7 +395,7 @@
             <h2>Condiciones y Garantías (Notas del Presupuesto)</h2>
             <div class="form-group full-width" style="margin-bottom: 20px;">
                 <label>Texto de notas legales, validez o exclusiones de garantía:</label>
-                <textarea id="emp-notas" rows="5" placeholder="Ej. La garantía de este producto es de 3 años. Quedan excluidos los daños por mal uso..."></textarea>
+                <textarea id="emp-notas" rows="5" placeholder="Ej. La garantía de este producto es de 3 años..."></textarea>
             </div>
 
             <button type="button" class="btn" onclick="guardarConfiguracion()">Guardar Configuración</button>
@@ -495,21 +569,117 @@
     </div>
 </div>
 
-<script>
-    // Inicializar datos cargados desde localStorage
-    let clientes = JSON.parse(localStorage.getItem('clientes')) || [];
-    let inventario = JSON.parse(localStorage.getItem('inventario')) || [];
-    let miEmpresa = JSON.parse(localStorage.getItem('miEmpresa')) || {};
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
-    window.onload = function() {
-        cargarConfiguracionUI();
-        actualizarTablaClientes();
-        actualizarTablaInventario();
-        setupBuscadorClientes();
+    // Tu configuración oficial de Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyAYVpthEEYKuw_doweVdQ3oQs3ec0qnLeE",
+        authDomain: "presupuestos-f68b8.firebaseapp.com",
+        projectId: "presupuestos-f68b8",
+        storageBucket: "presupuestos-f68b8.firebasestorage.app",
+        messagingSenderId: "812697144653",
+        appId: "1:812697144653:web:c77beae4d1c2359566bb04",
+        measurementId: "G-B2E276ZLSE"
     };
 
-    // Navegación de pestañas y botón de configuración
-    function switchTab(tabId) {
+    // Inicialización de servicios
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app); // Inicialización de Firestore
+    const provider = new GoogleAuthProvider();
+
+    // Variables globales reactivas en la memoria del programa
+    let usuarioActual = null;
+    let clientes = [];
+    let inventario = [];
+    let miEmpresa = {};
+
+    // --- ESCUCHADOR DE SESIÓN DE GOOGLE ---
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            usuarioActual = user;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-container').style.display = 'block';
+            cargarDatosDesdeFirestore(); // Carga automática desde Firestore
+        } else {
+            usuarioActual = null;
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-container').style.display = 'none';
+        }
+    });
+
+    window.loginConGoogle = function() {
+        signInWithPopup(auth, provider).catch(error => alert("Error al autenticar con Google: " + error.message));
+    }
+
+    window.logout = function() {
+        signOut(auth).then(() => {
+            limpiarFormulariosAlSalir();
+        });
+    }
+
+    function limpiarFormulariosAlSalir() {
+        document.getElementById('form-config').reset();
+        document.getElementById('form-cliente').reset();
+        document.getElementById('form-inventario').reset();
+        document.getElementById('emp-logo-preview').style.display = 'none';
+        document.getElementById('cliente-seleccionado-info').innerText = '';
+        document.getElementById('vista-previa').style.display = 'none';
+        clientes = [];
+        inventario = [];
+        miEmpresa = {};
+    }
+
+    // --- OPERACIONES NATIVAS CON CLOUD FIRESTORE ---
+    async function cargarDatosDesdeFirestore() {
+        if (!usuarioActual) return;
+        try {
+            // Buscamos el documento correspondiente al UID del usuario en la colección 'users'
+            const userDocRef = doc(db, "users", usuarioActual.uid);
+            const docSnap = await getDoc(userDocRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                clientes = data.clientes || [];
+                inventario = data.inventario || [];
+                miEmpresa = data.miEmpresa || {};
+                
+                // Pintamos la interfaz gráfica con los datos frescos de Firestore
+                cargarConfiguracionUI();
+                actualizarTablaClientes();
+                actualizarTablaInventario();
+            } else {
+                clientes = [];
+                inventario = [];
+                miEmpresa = {};
+                actualizarTablaClientes();
+                actualizarTablaInventario();
+            }
+        } catch (error) {
+            console.error("Error al leer desde Firestore: ", error);
+        }
+    }
+
+    async function sincronizarConFirestore() {
+        if (!usuarioActual) return;
+        try {
+            const userDocRef = doc(db, "users", usuarioActual.uid);
+            // Guardamos todo de forma agrupada e íntegra bajo el UID del usuario en Firestore
+            await setDoc(userDocRef, {
+                clientes: clientes,
+                inventario: inventario,
+                miEmpresa: miEmpresa
+            }, { merge: true }); // Merge evita sobrescribir campos vacíos sin querer
+        } catch (error) {
+            console.error("Error al escribir en Cloud Firestore: ", error);
+        }
+    }
+
+    // --- CONTROLADOR DE VISTAS (PESTAÑAS) ---
+    window.switchTab = function(tabId) {
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         
@@ -522,26 +692,23 @@
             const activeBtn = document.getElementById('btn-' + tabId);
             if(activeBtn) activeBtn.classList.add('active');
         }
-        
         document.getElementById('vista-previa').style.display = 'none';
     }
 
-    // --- LOGO DE EMPRESA (Base64 para almacenar localmente) ---
-    function procesarLogo(input) {
+    window.procesarLogo = function(input) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const preview = document.getElementById('emp-logo-preview');
                 preview.src = e.target.result;
                 preview.style.display = 'block';
-                miEmpresa.logo = e.target.result; // Almacenamiento temporal
+                miEmpresa.logo = e.target.result; 
             };
             reader.readAsDataURL(input.files[0]);
         }
     }
 
-    // --- CONFIGURACIÓN DE EMPRESA ---
-    function guardarConfiguracion() {
+    window.guardarConfiguracion = async function() {
         miEmpresa.cif = document.getElementById('emp-cif').value;
         miEmpresa.nombre = document.getElementById('emp-nombre').value;
         miEmpresa.direccion = document.getElementById('emp-direccion').value;
@@ -549,10 +716,10 @@
         miEmpresa.poblacion = document.getElementById('emp-poblacion').value;
         miEmpresa.telefono = document.getElementById('emp-telefono').value;
         miEmpresa.email = document.getElementById('emp-email').value;
-        miEmpresa.notas = document.getElementById('emp-notas').value;
+        miEmpresa.notes = document.getElementById('emp-notas').value;
 
-        localStorage.setItem('miEmpresa', JSON.stringify(miEmpresa));
-        alert('Configuración de empresa guardada correctamente.');
+        await sincronizarConFirestore();
+        alert('Configuración corporativa guardada de forma segura en Firestore.');
         switchTab('tab-presupuestos');
     }
 
@@ -565,17 +732,18 @@
             document.getElementById('emp-poblacion').value = miEmpresa.poblacion;
             document.getElementById('emp-telefono').value = miEmpresa.telefono;
             document.getElementById('emp-email').value = miEmpresa.email;
-            document.getElementById('emp-notas').value = miEmpresa.notas || '';
+            document.getElementById('emp-notas').value = miEmpresa.notes || '';
+            const preview = document.getElementById('emp-logo-preview');
             if (miEmpresa.logo) {
-                const preview = document.getElementById('emp-logo-preview');
                 preview.src = miEmpresa.logo;
                 preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
             }
         }
     }
 
-    // --- GESTIÓN DE CLIENTES ---
-    function guardarCliente(e) {
+    window.guardarCliente = async function(e) {
         e.preventDefault();
         const nuevoCliente = {
             id: Date.now(),
@@ -589,11 +757,11 @@
         };
 
         clientes.push(nuevoCliente);
-        localStorage.setItem('clientes', JSON.stringify(clientes));
+        await sincronizarConFirestore();
         
         document.getElementById('form-cliente').reset();
         actualizarTablaClientes();
-        alert('Cliente añadido con éxito.');
+        alert('Cliente registrado en tu espacio de Firestore.');
     }
 
     function actualizarTablaClientes() {
@@ -610,53 +778,50 @@
         });
     }
 
-    // --- BUSCADOR REALTIME DE CLIENTES ---
-    function setupBuscadorClientes() {
-        const input = document.getElementById('search-cliente');
-        const resultsContainer = document.getElementById('cliente-results');
-        const selectedInfo = document.getElementById('cliente-seleccionado-info');
+    // --- BUSCADOR CON FILTRADO EN TIEMPO REAL: CLIENTES ---
+    const inputCliente = document.getElementById('search-cliente');
+    const resultsCliente = document.getElementById('cliente-results');
+    const infoCliente = document.getElementById('cliente-seleccionado-info');
 
-        input.addEventListener('input', function() {
-            const value = this.value.toLowerCase().trim();
-            resultsContainer.innerHTML = '';
-            
-            if(!value) {
-                resultsContainer.style.display = 'none';
-                return;
-            }
+    inputCliente.addEventListener('input', function() {
+        const value = this.value.toLowerCase().trim();
+        resultsCliente.innerHTML = '';
+        
+        if(!value) {
+            resultsCliente.style.display = 'none';
+            return;
+        }
 
-            const filtrados = clientes.filter(c => 
-                c.nombre.toLowerCase().includes(value) || c.cif.toLowerCase().includes(value)
-            );
+        const filtrados = clientes.filter(c => 
+            c.nombre.toLowerCase().includes(value) || c.cif.toLowerCase().includes(value)
+        );
 
-            if(filtrados.length > 0) {
-                resultsContainer.style.display = 'block';
-                filtrados.forEach(c => {
-                    const div = document.createElement('div');
-                    div.className = 'search-item';
-                    div.innerHTML = `<strong>${c.nombre}</strong> <small style="color:#777;">(${c.cif})</small>`;
-                    div.onclick = function() {
-                        input.value = c.nombre;
-                        document.getElementById('select-cliente-id').value = c.id;
-                        selectedInfo.innerText = `✓ Cliente: ${c.nombre} seleccionado.`;
-                        resultsContainer.style.display = 'none';
-                    };
-                    resultsContainer.appendChild(div);
-                });
-            } else {
-                resultsContainer.style.display = 'none';
-            }
-        });
+        if(filtrados.length > 0) {
+            resultsCliente.style.display = 'block';
+            filtrados.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                div.innerHTML = `<strong>${c.nombre}</strong> <small style="color:#777;">(${c.cif})</small>`;
+                div.onclick = function() {
+                    inputCliente.value = c.nombre;
+                    document.getElementById('select-cliente-id').value = c.id;
+                    infoCliente.innerText = `✓ Cliente: ${c.nombre} seleccionado.`;
+                    resultsCliente.style.display = 'none';
+                };
+                resultsCliente.appendChild(div);
+            });
+        } else {
+            resultsCliente.style.display = 'none';
+        }
+    });
 
-        document.addEventListener('click', function(e) {
-            if(!input.contains(e.target) && !resultsContainer.contains(e.target)) {
-                resultsContainer.style.display = 'none';
-            }
-        });
-    }
+    document.addEventListener('click', function(e) {
+        if(!inputCliente.contains(e.target) && !resultsCliente.contains(e.target)) {
+            resultsCliente.style.display = 'none';
+        }
+    });
 
-    // --- GESTIÓN DE INVENTARIO ---
-    function guardarInventario(e) {
+    window.guardarInventario = async function(e) {
         e.preventDefault();
         const nuevoArticulo = {
             id: Date.now(),
@@ -666,11 +831,11 @@
         };
 
         inventario.push(nuevoArticulo);
-        localStorage.setItem('inventario', JSON.stringify(inventario));
+        await sincronizarConFirestore();
 
         document.getElementById('form-inventario').reset();
         actualizarTablaInventario();
-        alert('Artículo añadido al inventario.');
+        alert('Artículo añadido a tu inventario de Firestore.');
     }
 
     function actualizarTablaInventario() {
@@ -686,8 +851,8 @@
         });
     }
 
-    // --- LÓGICA DE ARTÍCULOS EN EL PRESUPUESTO (BUSCADOR AUTOMÁTICO) ---
-    function buscarArticuloRealtime(input) {
+    // --- BUSCADOR CON FILTRADO EN TIEMPO REAL: ARTÍCULOS ---
+    window.buscarArticuloRealtime = function(input) {
         const row = input.closest('.item-row');
         const dropdown = row.querySelector('.search-dropdown');
         const precioInput = row.querySelector('.art-precio');
@@ -723,18 +888,17 @@
         }
     }
 
-    // Cerrar los desplegables de artículos si se hace clic fuera de la fila
     document.addEventListener('click', function(e) {
         document.querySelectorAll('.item-row').forEach(row => {
             const dropdown = row.querySelector('.search-dropdown');
             const input = row.querySelector('.art-desc');
-            if(!input.contains(e.target) && !dropdown.contains(e.target)) {
+            if(dropdown && input && !input.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.style.display = 'none';
             }
         });
     });
 
-    function añadirFilaArticulo() {
+    window.añadirFilaArticulo = function() {
         const contenedor = document.getElementById('lista-articulos');
         const nuevaFila = document.createElement('div');
         nuevaFila.className = 'item-row';
@@ -749,7 +913,7 @@
         contenedor.appendChild(nuevaFila);
     }
 
-    function eliminarFila(btn) {
+    window.eliminarFila = function(btn) {
         const filas = document.querySelectorAll('.item-row');
         if (filas.length > 1) {
             btn.parentElement.remove();
@@ -759,7 +923,7 @@
         }
     }
 
-    function calcularTotales() {
+    window.calcularTotales = function() {
         let subtotal = 0;
         const precios = document.querySelectorAll('.art-precio');
         
@@ -778,8 +942,7 @@
         document.getElementById('val-total').innerText = total.toFixed(2);
     }
 
-    // --- VISTA PREVIA E IMPRESIÓN ---
-    function generarVistaPrevia() {
+    window.generarVistaPrevia = function() {
         const clienteId = document.getElementById('select-cliente-id').value;
         if (!clienteId) {
             alert('Por favor, selecciona un cliente válido usando el buscador.');
@@ -791,8 +954,6 @@
         }
 
         const clienteSel = clientes.find(c => c.id == clienteId);
-        
-        // Carga de Logo en Impresión si existe
         const imgPrint = document.getElementById('print-logo');
         if (miEmpresa.logo) {
             imgPrint.src = miEmpresa.logo;
@@ -801,7 +962,6 @@
             imgPrint.style.display = 'none';
         }
 
-        // Rellenar Datos Empresa
         document.getElementById('print-datos-empresa').innerHTML = `
             <strong>${miEmpresa.nombre}</strong><br>
             CIF: ${miEmpresa.cif}<br>
@@ -810,11 +970,9 @@
             Tlf: ${miEmpresa.telefono} | Email: ${miEmpresa.email}
         `;
 
-        // Metadatos Presupuesto
         document.getElementById('print-num-pres').innerText = document.getElementById('pres-numero').value;
         document.getElementById('print-fecha').innerText = new Date().toLocaleDateString('es-ES');
 
-        // Rellenar Datos Cliente
         document.getElementById('print-datos-cliente').innerHTML = `
             <strong>Nombre:</strong> ${clienteSel.nombre} <br>
             <strong>CIF/NIF:</strong> ${clienteSel.cif} <br>
@@ -822,7 +980,6 @@
             <strong>Contacto:</strong> ${clienteSel.telefono} | ${clienteSel.email}
         `;
 
-        // Rellenar Artículos en Tabla de Impresión
         const tbodyPrint = document.querySelector('#print-tabla-articulos tbody');
         tbodyPrint.innerHTML = '';
         
@@ -838,20 +995,15 @@
             tbodyPrint.innerHTML += row;
         });
 
-        // Totales Finales en Impresión
         document.getElementById('print-subtotal').innerText = document.getElementById('val-subtotal').innerText;
         document.getElementById('print-iva').innerText = document.getElementById('val-iva').innerText;
         document.getElementById('print-total').innerText = document.getElementById('val-total').innerText;
+        document.getElementById('print-notes').innerText = miEmpresa.notes || 'Sin observaciones.';
 
-        // Notas y Garantía
-        document.getElementById('print-notas').innerText = miEmpresa.notas || 'Sin observaciones.';
-
-        // Mostrar vista previa interactiva
         const vistaPrevia = document.getElementById('vista-previa');
         vistaPrevia.style.display = 'block';
         vistaPrevia.scrollIntoView({ behavior: 'smooth' });
     }
 </script>
-
 </body>
 </html>
